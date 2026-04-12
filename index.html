@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QR Code 產生器</title>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="2" y="2" width="14" height="14" rx="2" fill="#6366f1"/>
+          <rect x="5" y="5" width="8" height="8" rx="1" fill="white"/>
+          <rect x="20" y="2" width="14" height="14" rx="2" fill="#6366f1"/>
+          <rect x="23" y="5" width="8" height="8" rx="1" fill="white"/>
+          <rect x="2" y="20" width="14" height="14" rx="2" fill="#6366f1"/>
+          <rect x="5" y="23" width="8" height="8" rx="1" fill="white"/>
+          <rect x="20" y="20" width="6" height="6" rx="1" fill="#6366f1"/>
+          <rect x="28" y="20" width="6" height="6" rx="1" fill="#6366f1"/>
+          <rect x="20" y="28" width="6" height="6" rx="1" fill="#6366f1"/>
+          <rect x="28" y="28" width="6" height="6" rx="1" fill="#6366f1"/>
+        </svg>
+      </div>
+      <h1>QR Code 產生器</h1>
+      <p class="subtitle">輸入網址，立即生成 QR Code</p>
+    </header>
+
+    <main>
+      <div class="input-section">
+        <label for="url-input">網址</label>
+        <div class="input-wrapper">
+          <svg class="input-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>
+          <input
+            type="url"
+            id="url-input"
+            placeholder="https://example.com"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button id="clear-btn" class="clear-btn" title="清除" aria-label="清除輸入">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="options-row">
+          <div class="option-group">
+            <label for="size-select">尺寸</label>
+            <select id="size-select">
+              <option value="200">200 × 200</option>
+              <option value="300" selected>300 × 300</option>
+              <option value="400">400 × 400</option>
+              <option value="500">500 × 500</option>
+            </select>
+          </div>
+          <div class="option-group">
+            <label for="color-pick">前景色</label>
+            <input type="color" id="color-pick" value="#000000" />
+          </div>
+          <div class="option-group">
+            <label for="bg-pick">背景色</label>
+            <input type="color" id="bg-pick" value="#ffffff" />
+          </div>
+          <div class="option-group">
+            <label for="ec-select">容錯等級</label>
+            <select id="ec-select">
+              <option value="L">低 (L)</option>
+              <option value="M" selected>中 (M)</option>
+              <option value="Q">較高 (Q)</option>
+              <option value="H">高 (H)</option>
+            </select>
+          </div>
+        </div>
+
+        <button id="generate-btn" class="generate-btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+          </svg>
+          生成 QR Code
+        </button>
+      </div>
+
+      <div id="result-section" class="result-section hidden">
+        <div class="qr-card">
+          <canvas id="qr-canvas"></canvas>
+        </div>
+        <div class="action-btns">
+          <button id="download-png" class="action-btn primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            下載 PNG
+          </button>
+          <button id="copy-btn" class="action-btn secondary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            複製圖片
+          </button>
+        </div>
+        <p id="url-display" class="url-display"></p>
+      </div>
+
+      <div id="error-msg" class="error-msg hidden">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span id="error-text"></span>
+      </div>
+    </main>
+
+    <footer>
+      <p>QR Code Generator &copy; 2026</p>
+    </footer>
+  </div>
+
+  <div id="toast" class="toast" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
