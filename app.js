@@ -1,22 +1,28 @@
-/* QR Code Generator – app.js */
+/* QR Code Generator – app.js (qrcodejs) */
 
-const urlInput     = document.getElementById('url-input');
-const clearBtn     = document.getElementById('clear-btn');
-const generateBtn  = document.getElementById('generate-btn');
-const sizeSelect   = document.getElementById('size-select');
-const colorPick    = document.getElementById('color-pick');
-const bgPick       = document.getElementById('bg-pick');
-const ecSelect     = document.getElementById('ec-select');
+const urlInput      = document.getElementById('url-input');
+const clearBtn      = document.getElementById('clear-btn');
+const generateBtn   = document.getElementById('generate-btn');
+const sizeSelect    = document.getElementById('size-select');
+const colorPick     = document.getElementById('color-pick');
+const bgPick        = document.getElementById('bg-pick');
+const ecSelect      = document.getElementById('ec-select');
 const resultSection = document.getElementById('result-section');
-const qrCanvas     = document.getElementById('qr-canvas');
-const downloadPng  = document.getElementById('download-png');
-const copyBtn      = document.getElementById('copy-btn');
-const urlDisplay   = document.getElementById('url-display');
-const errorMsg     = document.getElementById('error-msg');
-const errorText    = document.getElementById('error-text');
-const toast        = document.getElementById('toast');
+const qrContainer   = document.getElementById('qr-container');
+const downloadPng   = document.getElementById('download-png');
+const copyBtn       = document.getElementById('copy-btn');
+const urlDisplay    = document.getElementById('url-display');
+const errorMsg      = document.getElementById('error-msg');
+const errorText     = document.getElementById('error-text');
+const toast         = document.getElementById('toast');
 
 let toastTimer = null;
+const levelMap = {
+  L: QRCode.CorrectLevel.L,
+  M: QRCode.CorrectLevel.M,
+  Q: QRCode.CorrectLevel.Q,
+  H: QRCode.CorrectLevel.H,
+};
 
 /* ── Helpers ── */
 function showToast(msg) {
@@ -43,6 +49,10 @@ function isValidUrl(str) {
   } catch {
     return false;
   }
+}
+
+function getCanvas() {
+  return qrContainer.querySelector('canvas') || qrContainer.querySelector('img');
 }
 
 /* ── Clear button visibility ── */
@@ -76,37 +86,29 @@ function generate() {
   }
 
   hideError();
-  generateBtn.disabled = true;
-  generateBtn.textContent = '生成中…';
 
   const size = parseInt(sizeSelect.value, 10);
 
-  QRCode.toCanvas(qrCanvas, url, {
-    width: size,
-    margin: 2,
-    color: {
-      dark:  colorPick.value,
-      light: bgPick.value,
-    },
-    errorCorrectionLevel: ecSelect.value,
-  }, (err) => {
-    generateBtn.disabled = false;
-    // Restore button content
-    generateBtn.innerHTML = `
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-      </svg>
-      生成 QR Code`;
+  // Clear previous QR code
+  qrContainer.innerHTML = '';
 
-    if (err) {
-      showError('生成失敗：' + err.message);
-      return;
-    }
+  try {
+    new QRCode(qrContainer, {
+      text: url,
+      width: size,
+      height: size,
+      colorDark: colorPick.value,
+      colorLight: bgPick.value,
+      correctLevel: levelMap[ecSelect.value],
+    });
+  } catch (err) {
+    showError('生成失敗：' + (err.message || err));
+    return;
+  }
 
-    urlDisplay.textContent = url;
-    resultSection.classList.remove('hidden');
-    resultSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  });
+  urlDisplay.textContent = url;
+  resultSection.classList.remove('hidden');
+  resultSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 generateBtn.addEventListener('click', generate);
@@ -117,31 +119,39 @@ urlInput.addEventListener('keydown', (e) => {
 
 /* ── Download PNG ── */
 downloadPng.addEventListener('click', () => {
-  const link = document.createElement('a');
+  const el = getCanvas();
+  if (!el) { showToast('請先生成 QR Code'); return; }
+
   const hostname = (() => {
     try { return new URL(urlInput.value.trim()).hostname.replace(/\./g, '_'); }
     catch { return 'qrcode'; }
   })();
+
+  const link = document.createElement('a');
   link.download = `qr_${hostname}.png`;
-  link.href = qrCanvas.toDataURL('image/png');
+  link.href = el.tagName === 'CANVAS'
+    ? el.toDataURL('image/png')
+    : el.src;
   link.click();
   showToast('已下載 PNG 圖片');
 });
 
 /* ── Copy to clipboard ── */
 copyBtn.addEventListener('click', async () => {
+  const canvas = qrContainer.querySelector('canvas');
+  if (!canvas) { showToast('請先生成 QR Code'); return; }
+
   try {
     const blob = await new Promise((resolve) =>
-      qrCanvas.toBlob(resolve, 'image/png')
+      canvas.toBlob(resolve, 'image/png')
     );
     await navigator.clipboard.write([
       new ClipboardItem({ 'image/png': blob }),
     ]);
     showToast('已複製到剪貼簿');
   } catch {
-    // Fallback: copy data URL as text
     try {
-      await navigator.clipboard.writeText(qrCanvas.toDataURL('image/png'));
+      await navigator.clipboard.writeText(canvas.toDataURL('image/png'));
       showToast('已複製圖片資料');
     } catch {
       showToast('複製失敗，請手動儲存圖片');
