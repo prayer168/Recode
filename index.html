@@ -1,134 +1,620 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>QR Code 產生器</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <link rel="stylesheet" href="style.css" />
+  <title>Deep Ocean – Jellyfish</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+    canvas { display: block; }
+  </style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <div class="logo">
-        <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="2" y="2" width="14" height="14" rx="2" fill="#6366f1"/>
-          <rect x="5" y="5" width="8" height="8" rx="1" fill="white"/>
-          <rect x="20" y="2" width="14" height="14" rx="2" fill="#6366f1"/>
-          <rect x="23" y="5" width="8" height="8" rx="1" fill="white"/>
-          <rect x="2" y="20" width="14" height="14" rx="2" fill="#6366f1"/>
-          <rect x="5" y="23" width="8" height="8" rx="1" fill="white"/>
-          <rect x="20" y="20" width="6" height="6" rx="1" fill="#6366f1"/>
-          <rect x="28" y="20" width="6" height="6" rx="1" fill="#6366f1"/>
-          <rect x="20" y="28" width="6" height="6" rx="1" fill="#6366f1"/>
-          <rect x="28" y="28" width="6" height="6" rx="1" fill="#6366f1"/>
-        </svg>
-      </div>
-      <h1>QR Code 產生器</h1>
-      <p class="subtitle">輸入網址，立即生成 QR Code</p>
-    </header>
+<canvas id="c"></canvas>
+<script>
+'use strict';
 
-    <main>
-      <div class="input-section">
-        <label for="url-input">網址</label>
-        <div class="input-wrapper">
-          <svg class="input-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-          </svg>
-          <input
-            type="url"
-            id="url-input"
-            placeholder="https://example.com"
-            autocomplete="off"
-            spellcheck="false"
-          />
-          <button id="clear-btn" class="clear-btn" title="清除" aria-label="清除輸入">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
+/* ═══════════════════════════════════════════════════════════════
+   CANVAS SETUP
+═══════════════════════════════════════════════════════════════ */
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+let W = 0, H = 0;
 
-        <div class="options-row">
-          <div class="option-group">
-            <label for="size-select">尺寸</label>
-            <select id="size-select">
-              <option value="200">200 × 200</option>
-              <option value="300" selected>300 × 300</option>
-              <option value="400">400 × 400</option>
-              <option value="500">500 × 500</option>
-            </select>
-          </div>
-          <div class="option-group">
-            <label for="color-pick">前景色</label>
-            <input type="color" id="color-pick" value="#000000" />
-          </div>
-          <div class="option-group">
-            <label for="bg-pick">背景色</label>
-            <input type="color" id="bg-pick" value="#ffffff" />
-          </div>
-          <div class="option-group">
-            <label for="ec-select">容錯等級</label>
-            <select id="ec-select">
-              <option value="L">低 (L)</option>
-              <option value="M" selected>中 (M)</option>
-              <option value="Q">較高 (Q)</option>
-              <option value="H">高 (H)</option>
-            </select>
-          </div>
-        </div>
+function resize() {
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
 
-        <button id="generate-btn" class="generate-btn">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-          </svg>
-          生成 QR Code
-        </button>
-      </div>
+/* ═══════════════════════════════════════════════════════════════
+   UTILITIES
+═══════════════════════════════════════════════════════════════ */
+const TAU   = Math.PI * 2;
+const rand  = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const hsla  = (h, s, l, a) => `hsla(${h|0},${s|0}%,${l|0}%,${+a.toFixed(3)})`;
 
-      <div id="result-section" class="result-section hidden">
-        <div class="qr-card">
-          <div id="qr-container"></div>
-        </div>
-        <div class="action-btns">
-          <button id="download-png" class="action-btn primary">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            下載 PNG
-          </button>
-          <button id="copy-btn" class="action-btn secondary">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-            </svg>
-            複製圖片
-          </button>
-        </div>
-        <p id="url-display" class="url-display"></p>
-      </div>
+/* ═══════════════════════════════════════════════════════════════
+   VALUE NOISE  (2-D, smooth)
+═══════════════════════════════════════════════════════════════ */
+function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
 
-      <div id="error-msg" class="error-msg hidden">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        <span id="error-text"></span>
-      </div>
-    </main>
+function hash2(ix, iy) {
+  let h = (ix * 1619 + iy * 31337 + 1013904223) | 0;
+  h = Math.imul(h ^ (h >>> 16), 0x45d9f3b);
+  h = Math.imul(h ^ (h >>> 16), 0x45d9f3b);
+  return ((h ^ (h >>> 16)) & 0x7fffffff) / 0x7fffffff;
+}
 
-    <footer>
-      <p>QR Code Generator &copy; 2026</p>
-    </footer>
-  </div>
+function noise2(x, y) {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = x - ix,        fy = y - iy;
+  const ux = fade(fx),      uy = fade(fy);
+  const a = hash2(ix,   iy),   b = hash2(ix+1, iy);
+  const c = hash2(ix,   iy+1), d = hash2(ix+1, iy+1);
+  return a + (b-a)*ux + (c-a)*uy + (a-b-c+d)*ux*uy;
+}
 
-  <div id="toast" class="toast" aria-live="polite"></div>
+/* ═══════════════════════════════════════════════════════════════
+   BACKGROUND  — gradient + caustics + god-rays + vignette
+═══════════════════════════════════════════════════════════════ */
+// Pre-generate stable per-ray offsets so they don't flicker
+const RAY_OFFSETS = Array.from({ length: 8 }, () => rand(0, TAU));
 
-  <script src="app.js"></script>
+function drawBackground(t) {
+  /* 1 ── deep ocean gradient */
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0,    '#081a35');
+  bg.addColorStop(0.22, '#061530');
+  bg.addColorStop(0.6,  '#040e22');
+  bg.addColorStop(1,    '#020710');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  /* 2 ── surface shimmer (top 18 %) */
+  const surf = ctx.createLinearGradient(0, 0, 0, H * 0.18);
+  surf.addColorStop(0, 'rgba(15,60,160,0.22)');
+  surf.addColorStop(1, 'rgba(15,60,160,0)');
+  ctx.fillStyle = surf;
+  ctx.fillRect(0, 0, W, H * 0.18);
+
+  /* 3 ── caustic rings (top 38 %) */
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  for (let i = 0; i < 11; i++) {
+    const nx = noise2(i * 0.41 + t * 0.038, 0.1) * W;
+    const ny = noise2(i * 0.41,              t * 0.031 + 0.5) * H * 0.38;
+    const nr = 14 + noise2(i * 0.3, t * 0.022 + 1.0) * 58;
+    const cg = ctx.createRadialGradient(nx, ny, 0, nx, ny, nr);
+    cg.addColorStop(0,   'rgba(90,190,255,0.055)');
+    cg.addColorStop(0.5, 'rgba(70,170,240,0.022)');
+    cg.addColorStop(1,   'rgba(50,140,220,0)');
+    ctx.fillStyle = cg;
+    ctx.beginPath();
+    ctx.arc(nx, ny, nr, 0, TAU);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  /* 4 ── god rays */
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  for (let i = 0; i < RAY_OFFSETS.length; i++) {
+    const off   = RAY_OFFSETS[i];
+    const ox    = W * (0.1 + (i / RAY_OFFSETS.length) * 0.8);
+    const slant = Math.sin(t * 0.065 + off) * 0.075 * W;
+    const hw    = W * (0.035 + 0.014 * Math.sin(t * 0.1 + off));
+    const rayG  = ctx.createLinearGradient(ox, 0, ox + slant, H * 0.62);
+    rayG.addColorStop(0,   'rgba(80,160,255,0.055)');
+    rayG.addColorStop(0.5, 'rgba(60,140,230,0.022)');
+    rayG.addColorStop(1,   'rgba(40,100,200,0)');
+    ctx.beginPath();
+    ctx.moveTo(ox - hw,           0);
+    ctx.lineTo(ox + hw,           0);
+    ctx.lineTo(ox + slant + hw*1.6, H * 0.62);
+    ctx.lineTo(ox + slant - hw*1.6, H * 0.62);
+    ctx.closePath();
+    ctx.fillStyle = rayG;
+    ctx.fill();
+  }
+  ctx.restore();
+
+  /* 5 ── vignette */
+  const vig = ctx.createRadialGradient(
+    W/2, H/2, Math.min(W,H)*0.25,
+    W/2, H/2, Math.max(W,H)*0.82
+  );
+  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(1, 'rgba(0,4,18,0.58)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, W, H);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BIOLUMINESCENT PARTICLES
+═══════════════════════════════════════════════════════════════ */
+class Particle {
+  constructor(init = false) { this.reset(init); }
+
+  reset(init = false) {
+    this.x      = rand(0, W);
+    this.y      = init ? rand(0, H) : H + rand(5, 25);
+    this.r      = rand(0.5, 2.3);
+    this.vx     = rand(-0.18, 0.18);
+    this.vy     = -rand(0.07, 0.32);
+    this.hue    = rand(160, 240);
+    this.alpha  = rand(0.12, 0.52);
+    this.twink  = rand(0, TAU);
+    this.twinkS = rand(0.012, 0.042);
+  }
+
+  update() {
+    this.x     += this.vx;
+    this.y     += this.vy;
+    this.twink += this.twinkS;
+    if (this.y < -6) this.reset();
+  }
+
+  draw() {
+    const a = this.alpha * (0.5 + 0.5 * Math.sin(this.twink));
+    ctx.save();
+    ctx.globalAlpha  = a;
+    ctx.shadowColor  = hsla(this.hue, 100, 78, 1);
+    ctx.shadowBlur   = this.r * 6;
+    ctx.fillStyle    = hsla(this.hue, 90, 82, 1);
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BUBBLES
+═══════════════════════════════════════════════════════════════ */
+class Bubble {
+  constructor() { this.reset(true); }
+
+  reset(init = false) {
+    this.x     = rand(0, W);
+    this.y     = init ? rand(0, H) : H + 10;
+    this.r     = rand(1.5, 5.5);
+    this.vx    = rand(-0.1, 0.1);
+    this.vy    = -rand(0.28, 0.75);
+    this.alpha = rand(0.04, 0.18);
+    this.phase = rand(0, TAU);
+  }
+
+  update(t) {
+    this.x += this.vx + Math.sin(t * 1.1 + this.phase) * 0.14;
+    this.y += this.vy;
+    if (this.y < -12) this.reset();
+  }
+
+  draw() {
+    ctx.save();
+    ctx.globalAlpha = this.alpha;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r, 0, TAU);
+    ctx.strokeStyle = 'rgba(160,210,255,1)';
+    ctx.lineWidth   = 0.8;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(this.x - this.r*0.28, this.y - this.r*0.28, this.r*0.28, 0, TAU);
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   VERLET CHAIN  (one tentacle / oral arm)
+═══════════════════════════════════════════════════════════════ */
+class Chain {
+  /**
+   * @param {number} n      segments
+   * @param {number} segLen rest-length per segment
+   * @param {number} width  stroke width at root
+   * @param {number} hue    colour hue
+   */
+  constructor(n, segLen, width, hue) {
+    this.n      = n;
+    this.segLen = segLen;
+    this.width  = width;
+    this.hue    = hue;
+    this.ax     = 0;  // anchor world position
+    this.ay     = 0;
+    this.pts    = [];
+    for (let i = 0; i < n; i++) {
+      this.pts.push({ x: 0, y: i * segLen, px: 0, py: i * segLen });
+    }
+  }
+
+  setAnchor(ax, ay) {
+    this.ax = ax;
+    this.ay = ay;
+    this.pts[0].x = ax;
+    this.pts[0].y = ay;
+  }
+
+  update(windX = 0) {
+    const GRAV = 0.065, DAMP = 0.972, ITER = 3;
+
+    // Verlet integrate (skip pinned index 0)
+    for (let i = 1; i < this.n; i++) {
+      const p  = this.pts[i];
+      const vx = (p.x - p.px) * DAMP + windX * 0.0013;
+      const vy = (p.y - p.py) * DAMP;
+      p.px = p.x;  p.py = p.y;
+      p.x += vx;
+      p.y += vy + GRAV;
+    }
+
+    // Distance-constraint relaxation
+    for (let it = 0; it < ITER; it++) {
+      // Re-pin anchor every iteration so it never drifts
+      this.pts[0].x = this.ax;
+      this.pts[0].y = this.ay;
+
+      for (let i = 1; i < this.n; i++) {
+        const a  = this.pts[i - 1], b = this.pts[i];
+        const dx = b.x - a.x,      dy = b.y - a.y;
+        const d  = Math.sqrt(dx*dx + dy*dy) || 1e-6;
+        const c  = (d - this.segLen) / d * 0.5;
+        if (i > 1) { a.x += dx * c;  a.y += dy * c; }
+        b.x -= dx * c;  b.y -= dy * c;
+      }
+    }
+  }
+
+  draw() {
+    if (this.n < 2) return;
+    const pts  = this.pts;
+    const last = pts[this.n - 1];
+
+    ctx.save();
+    ctx.lineCap  = 'round';
+    ctx.lineJoin = 'round';
+
+    // Build smooth spline via midpoint algorithm
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < this.n - 1; i++) {
+      ctx.quadraticCurveTo(
+        pts[i].x, pts[i].y,
+        (pts[i].x + pts[i+1].x) * 0.5,
+        (pts[i].y + pts[i+1].y) * 0.5
+      );
+    }
+    ctx.lineTo(last.x, last.y);
+
+    // ── Glow pass ──
+    const gGrad = ctx.createLinearGradient(pts[0].x, pts[0].y, last.x, last.y);
+    gGrad.addColorStop(0, hsla(this.hue, 82, 74, 0.22));
+    gGrad.addColorStop(1, hsla(this.hue, 82, 74, 0));
+    ctx.strokeStyle = gGrad;
+    ctx.lineWidth   = this.width * 4;
+    ctx.shadowColor = hsla(this.hue, 90, 80, 0.7);
+    ctx.shadowBlur  = 10;
+    ctx.stroke();
+
+    // ── Core pass (rebuild path — shadows off) ──
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < this.n - 1; i++) {
+      ctx.quadraticCurveTo(
+        pts[i].x, pts[i].y,
+        (pts[i].x + pts[i+1].x) * 0.5,
+        (pts[i].y + pts[i+1].y) * 0.5
+      );
+    }
+    ctx.lineTo(last.x, last.y);
+
+    const cGrad = ctx.createLinearGradient(pts[0].x, pts[0].y, last.x, last.y);
+    cGrad.addColorStop(0,   hsla(this.hue, 76, 72, 0.88));
+    cGrad.addColorStop(0.6, hsla(this.hue, 76, 70, 0.38));
+    cGrad.addColorStop(1,   hsla(this.hue, 76, 70, 0));
+    ctx.strokeStyle = cGrad;
+    ctx.lineWidth   = this.width;
+    ctx.stroke();
+
+    ctx.restore();
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   JELLYFISH
+═══════════════════════════════════════════════════════════════ */
+class Jellyfish {
+  /**
+   * @param {number} x   initial world X (bell apex)
+   * @param {number} y   initial world Y (bell apex)
+   * @param {number} r   nominal bell radius
+   * @param {number} hue colour hue
+   */
+  constructor(x, y, r, hue) {
+    this.x    = x;
+    this.y    = y;
+    this.r    = r;
+    this.hue  = hue;
+
+    this.phase     = rand(0, TAU);
+    this.pulseFreq = rand(0.52, 0.98);
+    this.vx        = rand(-0.14, 0.14);
+    this.vy        = rand(-0.32, -0.14);
+
+    // Outer tentacles — thin, many
+    const nOuter = Math.round(r / 4.8 + 7);
+    this.outerChains = [];
+    for (let i = 0; i < nOuter; i++) {
+      const segs = Math.round(rand(14, 24));
+      const segL = r * rand(0.11, 0.17);
+      this.outerChains.push(new Chain(segs, segL, rand(0.9, 1.9), hue));
+    }
+
+    // Oral arms — thicker, fewer, inside bell
+    const nInner = 4;
+    this.innerChains = [];
+    for (let i = 0; i < nInner; i++) {
+      const segs = Math.round(rand(9, 14));
+      const segL = r * rand(0.17, 0.26);
+      this.innerChains.push(new Chain(segs, segL, rand(2.4, 4.0), (hue + 18) % 360));
+    }
+  }
+
+  /* Asymmetric pulse 0→1: fast contraction, slow relaxation */
+  _pulse(t) {
+    const raw = Math.sin(t * this.pulseFreq + this.phase); // –1…1
+    const n   = (raw + 1) * 0.5;                           // 0…1
+    return n < 0.5
+      ? 2 * n * n                            // ease-in  (contract)
+      : 1 - Math.pow(-2*n + 2, 2) / 2;      // ease-out (relax)
+  }
+
+  update(t) {
+    const p = this._pulse(t);
+
+    // Swimming impulse — bell contracts → push upward
+    const swim = Math.max(0, Math.sin(t * this.pulseFreq + this.phase)) * 0.38;
+    this.vy -= swim * 0.055;
+    this.vy  = clamp(this.vy + 0.011, -2.2, 0.6); // buoyancy drag
+    this.vx += (Math.random() - 0.5) * 0.003;
+    this.vx  = clamp(this.vx, -0.55, 0.55);
+
+    this.x += this.vx + Math.sin(t * 0.22 + this.phase) * 0.11;
+    this.y += this.vy;
+
+    // Screen wrap
+    if (this.y < -this.r * 5)  { this.y = H + this.r * 2; this.vy = rand(-0.32, -0.14); }
+    if (this.y > H + this.r*2) { this.y = -this.r; }
+    if (this.x < -this.r * 2)  { this.x = W + this.r; }
+    if (this.x > W + this.r*2) { this.x = -this.r; }
+
+    // Current bell dimensions (widen on contraction, shorten on relax)
+    const expand = 1 + (p - 0.5) * 0.3;
+    const bw = this.r * expand;
+    const bh = this.r * 0.6 / expand;
+    const rimY = this.y + bh;   // world-Y of the bell rim
+
+    // Anchor outer tentacles evenly across rim
+    for (let i = 0; i < this.outerChains.length; i++) {
+      const f  = i / (this.outerChains.length - 1);
+      const ax = this.x + (f - 0.5) * 2 * bw * 0.92;
+      const ay = rimY + Math.sin(f * Math.PI) * bh * 0.07;
+      this.outerChains[i].setAnchor(ax, ay);
+      this.outerChains[i].update(this.vx * 6);
+    }
+
+    // Anchor oral arms inside bell mouth
+    for (let i = 0; i < this.innerChains.length; i++) {
+      const f  = (i + 0.5) / this.innerChains.length;
+      const ax = this.x + (f - 0.5) * 2 * bw * 0.42;
+      const ay = rimY - bh * 0.08;
+      this.innerChains[i].setAnchor(ax, ay);
+      this.innerChains[i].update(this.vx * 3);
+    }
+  }
+
+  draw(t) {
+    const p      = this._pulse(t);
+    const expand = 1 + (p - 0.5) * 0.3;
+    const bw     = this.r * expand;
+    const bh     = this.r * 0.6 / expand;
+
+    ctx.save();
+
+    // 1 — Oral arms (rendered behind bell)
+    ctx.globalAlpha = 0.72;
+    for (const c of this.innerChains) c.draw();
+
+    // 2 — Outer tentacles
+    ctx.globalAlpha = 0.88;
+    for (const c of this.outerChains) c.draw();
+    ctx.globalAlpha = 1;
+
+    // 3 — Ambient halo
+    const haloR = bw * 1.65;
+    const hcx   = this.x, hcy = this.y + bh * 0.5;
+    const halo  = ctx.createRadialGradient(hcx, hcy, 0, hcx, hcy, haloR);
+    halo.addColorStop(0,   hsla(this.hue, 80, 70, 0.13));
+    halo.addColorStop(0.5, hsla(this.hue, 80, 65, 0.05));
+    halo.addColorStop(1,   hsla(this.hue, 80, 60, 0));
+    ctx.fillStyle = halo;
+    ctx.fillRect(hcx - haloR, hcy - haloR, haloR * 2, haloR * 2);
+
+    // 4 — Bell (translate to apex for local drawing)
+    ctx.translate(this.x, this.y);
+    this._drawBell(bw, bh, p, t);
+
+    ctx.restore();
+  }
+
+  _drawBell(bw, bh, p, t) {
+    /* Local coordinate system:
+         (0, 0)  = bell apex (top)
+         (±bw, bh) = bell rim
+       Bell dome outline is a smooth parametric curve.               */
+
+    const SEGS = 28;
+    const profile = [];
+    for (let i = 0; i <= SEGS; i++) {
+      const f     = i / SEGS;
+      const theta = f * Math.PI;
+      // Ellipse-ish dome: apex at y=0, rim at y=bh
+      let px = -bw * Math.cos(theta);
+      let py =  bh * (1 - Math.pow(Math.sin(theta), 0.82));
+      // Organic micro-ripple across the surface
+      px += bw * 0.022 * Math.cos(f * 7 * Math.PI + t * 1.7 + this.phase) * Math.sin(theta);
+      profile.push({ x: px, y: py });
+    }
+
+    const rimL   = profile[0];
+    const rimR   = profile[SEGS];
+    const velumY = bh * 0.13;  // how far the velum hangs below the rim
+
+    // ── Helper: trace the dome outline ──────────────────────────
+    const traceDome = () => {
+      ctx.moveTo(rimL.x, rimL.y);
+      for (let i = 1; i < profile.length - 1; i++) {
+        ctx.quadraticCurveTo(
+          profile[i].x, profile[i].y,
+          (profile[i].x + profile[i+1].x) * 0.5,
+          (profile[i].y + profile[i+1].y) * 0.5
+        );
+      }
+      ctx.lineTo(rimR.x, rimR.y);
+    };
+
+    /* ── A: outer bell fill ───────────────────────────────────── */
+    ctx.save();
+    ctx.shadowColor = hsla(this.hue, 92, 74, 0.95);
+    ctx.shadowBlur  = 20 + p * 14;
+
+    ctx.beginPath();
+    traceDome();
+    // Velum (the inward-curling rim shelf)
+    ctx.bezierCurveTo( bw*0.62,  bh + velumY,
+                      -bw*0.62,  bh + velumY,
+                       rimL.x,   rimL.y);
+    ctx.closePath();
+
+    const fg = ctx.createRadialGradient(-bw*0.08, bh*0.18, 0, 0, bh*0.48, bw*1.1);
+    fg.addColorStop(0,    hsla(this.hue+28, 68, 96, 0.88));
+    fg.addColorStop(0.38, hsla(this.hue,    78, 72, 0.62));
+    fg.addColorStop(0.78, hsla(this.hue-10, 84, 54, 0.28));
+    fg.addColorStop(1,    hsla(this.hue,    80, 50, 0));
+    ctx.fillStyle = fg;
+    ctx.fill();
+    ctx.restore();
+
+    /* ── B: dome edge stroke ──────────────────────────────────── */
+    ctx.save();
+    ctx.beginPath(); traceDome();
+    ctx.strokeStyle = hsla(this.hue, 80, 88, 0.32);
+    ctx.lineWidth   = 1.2;
+    ctx.stroke();
+    ctx.restore();
+
+    /* ── C: internal radial canals ────────────────────────────── */
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    const nC = 8;
+    for (let i = 0; i < nC; i++) {
+      const cf    = i / (nC - 1);
+      const cx    = (cf - 0.5) * 2 * bw * 0.86;
+      const alpha = 0.065 + 0.042 * Math.sin(t * 1.5 + i * 0.78 + this.phase);
+      ctx.beginPath();
+      ctx.moveTo(cx, bh * 0.92);
+      ctx.quadraticCurveTo(cx * 0.38, bh * 0.44, 0, bh * 0.06);
+      ctx.strokeStyle = hsla(this.hue+18, 90, 90, alpha);
+      ctx.lineWidth   = 1.0;
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    /* ── D: pulsing inner glow (bioluminescence peak at p≈1) ──── */
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    const igR = bw * 0.62;
+    const ig  = ctx.createRadialGradient(0, bh*0.44, 0, 0, bh*0.44, igR);
+    ig.addColorStop(0, hsla(this.hue, 95, 88, 0.18 * p));
+    ig.addColorStop(1, hsla(this.hue, 95, 80, 0));
+    ctx.fillStyle = ig;
+    ctx.fillRect(-bw, 0, bw*2, bh);
+    ctx.restore();
+
+    /* ── E: specular highlight (upper-left sheen) ─────────────── */
+    ctx.save();
+    const sg = ctx.createRadialGradient(-bw*0.24, bh*0.14, 0, -bw*0.1, bh*0.3, bw*0.52);
+    sg.addColorStop(0,   hsla(this.hue+42, 50, 98, 0.58));
+    sg.addColorStop(0.6, hsla(this.hue+20, 62, 90, 0.12));
+    sg.addColorStop(1,   hsla(this.hue,    80, 80, 0));
+    ctx.fillStyle = sg;
+    ctx.fillRect(-bw, 0, bw*2, bh * 0.7);
+    ctx.restore();
+
+    /* ── F: rim-fringe glow dots (cilia / marginal tentacle bulbs) */
+    ctx.save();
+    ctx.shadowColor = hsla(this.hue, 92, 86, 1);
+    ctx.shadowBlur  = 6;
+    const nDots = Math.round(bw / 4.2);
+    for (let i = 0; i <= nDots; i++) {
+      const f      = i / nDots;
+      const theta  = f * Math.PI;
+      const dotX   = -bw * Math.cos(theta) * 0.97;
+      const dotY   = bh + 1.5;  // just on the rim
+      const da     = 0.38 + 0.30 * Math.sin(t * 3.2 + i * 0.52 + this.phase);
+      ctx.beginPath();
+      ctx.arc(dotX, dotY, 1.25, 0, TAU);
+      ctx.fillStyle = hsla(this.hue+10, 82, 92, da);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SCENE SETUP
+═══════════════════════════════════════════════════════════════ */
+// Sort by size so smallest (furthest) draw first
+const JELLY_DEFS = [
+  { xf:0.10, yf:0.72, r:38,  hue:195 },
+  { xf:0.88, yf:0.25, r:42,  hue:270 },
+  { xf:0.32, yf:0.40, r:48,  hue:255 },
+  { xf:0.65, yf:0.85, r:52,  hue:335 },
+  { xf:0.55, yf:0.20, r:58,  hue:295 },
+  { xf:0.20, yf:0.55, r:68,  hue:210 },
+  { xf:0.78, yf:0.60, r:80,  hue:178 },
+];
+
+const jellies   = JELLY_DEFS.map(d => new Jellyfish(d.xf*W, d.yf*H, d.r, d.hue));
+const particles = Array.from({ length: 130 }, () => new Particle(true));
+const bubbles   = Array.from({ length: 26  }, () => new Bubble());
+
+/* ═══════════════════════════════════════════════════════════════
+   ANIMATION LOOP
+═══════════════════════════════════════════════════════════════ */
+let t0 = performance.now();
+
+function frame(now) {
+  const t = (now - t0) / 1000;
+
+  drawBackground(t);
+
+  for (const p of particles) { p.update();   p.draw(); }
+  for (const b of bubbles)   { b.update(t);  b.draw(); }
+
+  for (const j of jellies)   j.update(t);
+  for (const j of jellies)   j.draw(t);
+
+  requestAnimationFrame(frame);
+}
+
+requestAnimationFrame(frame);
+</script>
 </body>
 </html>
