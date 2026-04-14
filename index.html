@@ -30,6 +30,23 @@ resize();
 window.addEventListener('resize', resize);
 
 /* ═══════════════════════════════════════════════════════════════
+   MOUSE / TOUCH  TRACKING
+═══════════════════════════════════════════════════════════════ */
+let mouseX = -9999, mouseY = -9999, mouseActive = false;
+
+window.addEventListener('mousemove', e => {
+  mouseX = e.clientX; mouseY = e.clientY; mouseActive = true;
+});
+window.addEventListener('mouseleave', () => { mouseActive = false; });
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const t0 = e.touches[0];
+  mouseX = t0.clientX; mouseY = t0.clientY; mouseActive = true;
+}, { passive: false });
+canvas.addEventListener('touchend',   () => { mouseActive = false; });
+
+/* ═══════════════════════════════════════════════════════════════
    UTILITIES
 ═══════════════════════════════════════════════════════════════ */
 const TAU   = Math.PI * 2;
@@ -131,6 +148,13 @@ function drawBackground(t) {
   vig.addColorStop(1, 'rgba(0,4,18,0.58)');
   ctx.fillStyle = vig;
   ctx.fillRect(0, 0, W, H);
+
+  /* 6 ── deep-abyss fog (bottom 30 %) */
+  const abyss = ctx.createLinearGradient(0, H * 0.70, 0, H);
+  abyss.addColorStop(0, 'rgba(0,2,10,0)');
+  abyss.addColorStop(1, 'rgba(0,2,10,0.82)');
+  ctx.fillStyle = abyss;
+  ctx.fillRect(0, H * 0.70, W, H * 0.30);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -385,6 +409,23 @@ class Jellyfish {
     this.vx += (Math.random() - 0.5) * 0.003;
     this.vx  = clamp(this.vx, -0.55, 0.55);
 
+    // Mouse / touch repulsion — jellyfish sense the disturbance and flee
+    if (mouseActive) {
+      const expand = 1 + (p - 0.5) * 0.3;
+      const bh     = this.r * 0.6 / expand;
+      const cxJ    = this.x;
+      const cyJ    = this.y + bh * 0.5;  // approximate bell centre
+      const mdx    = cxJ - mouseX;
+      const mdy    = cyJ - mouseY;
+      const mdist  = Math.sqrt(mdx * mdx + mdy * mdy) || 1;
+      const repR   = this.r * 3.2 + 90;
+      if (mdist < repR) {
+        const str = (1 - mdist / repR) * 0.9;
+        this.vx  += (mdx / mdist) * str * 0.18;
+        this.vy  += (mdy / mdist) * str * 0.18;
+      }
+    }
+
     this.x += this.vx + Math.sin(t * 0.22 + this.phase) * 0.11;
     this.y += this.vy;
 
@@ -607,6 +648,21 @@ function frame(now) {
 
   for (const p of particles) { p.update();   p.draw(); }
   for (const b of bubbles)   { b.update(t);  b.draw(); }
+
+  // Cursor bioluminescent wake
+  if (mouseActive) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    const wg = ctx.createRadialGradient(mouseX, mouseY, 0, mouseX, mouseY, 95);
+    wg.addColorStop(0,   'rgba(100,210,255,0.07)');
+    wg.addColorStop(0.45,'rgba(80,180,240,0.03)');
+    wg.addColorStop(1,   'rgba(60,150,220,0)');
+    ctx.fillStyle = wg;
+    ctx.beginPath();
+    ctx.arc(mouseX, mouseY, 95, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
 
   for (const j of jellies)   j.update(t);
   for (const j of jellies)   j.draw(t);
