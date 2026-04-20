@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>雨天動畫</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #060a10; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+
+let W, H, GY, PY;
+
+let mtnA = [], mtnB = [], mtnC = [];
+let trees = [];
+
+function resize() {
+  W  = canvas.width  = window.innerWidth;
+  H  = canvas.height = window.innerHeight;
+  GY = Math.floor(H * 0.595);
+  PY = Math.floor(H * 0.650);
+  buildScene();
+}
+
+function makePoly(peaks, base) {
+  return [[0, base], ...peaks.map(([x, y]) => [x * W, y * base]), [W, base]];
+}
+
+function buildScene() {
+  mtnA = makePoly([
+    [0.04,0.87],[0.11,0.77],[0.18,0.85],[0.26,0.74],
+    [0.34,0.81],[0.42,0.71],[0.50,0.79],[0.58,0.84],
+    [0.66,0.73],[0.74,0.81],[0.82,0.72],[0.90,0.79],[0.97,0.85]
+  ], GY);
+
+  mtnB = makePoly([
+    [0.03,0.90],[0.11,0.71],[0.21,0.83],[0.31,0.65],
+    [0.41,0.77],[0.50,0.62],[0.60,0.74],[0.69,0.80],
+    [0.78,0.67],[0.87,0.75],[0.95,0.71]
+  ], GY);
+
+  mtnC = makePoly([
+    [0.02,0.92],[0.10,0.63],[0.21,0.80],[0.32,0.54],
+    [0.43,0.71],[0.53,0.50],[0.62,0.65],[0.72,0.56],
+    [0.81,0.69],[0.89,0.59],[0.96,0.74]
+  ], GY);
+
+  trees = [0.17, 0.33, 0.61, 0.79].map(xf => ({
+    x: xf * W + (Math.random() - 0.5) * 45,
+    y: GY,
+    h: 58 + Math.random() * 72,
+    w: 0
+  }));
+  trees.forEach(t => { t.w = t.h * 0.58; });
+}
+
+function drawTree({ x, y, h, w }) {
+  ctx.fillStyle = '#0a1107';
+  ctx.beginPath();
+  ctx.moveTo(x - w * 0.04, y);
+  ctx.lineTo(x - w * 0.025, y - h * 0.30);
+  ctx.lineTo(x + w * 0.025, y - h * 0.30);
+  ctx.lineTo(x + w * 0.04, y);
+  ctx.fill();
+
+  ctx.fillStyle = '#0e1b0b';
+  for (const [dx, dy, rx, ry] of [
+    [ 0,    0.63, 0.30, 0.32],
+    [-0.16, 0.52, 0.24, 0.25],
+    [ 0.16, 0.52, 0.24, 0.25],
+    [ 0,    0.82, 0.22, 0.20],
+    [-0.13, 0.73, 0.19, 0.18],
+    [ 0.13, 0.73, 0.19, 0.18],
+    [ 0,    0.97, 0.15, 0.13],
+  ]) {
+    ctx.beginPath();
+    ctx.ellipse(x + dx * w, y - dy * h, rx * w, ry * h, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+const LEAN = 0.10;
+const drops = [];
+
+class Drop {
+  constructor(spread) { this.reset(spread); }
+  reset(spread = false) {
+    this.x   = Math.random() * (W + 200);
+    this.y   = spread ? Math.random() * H * 1.4 - H * 0.2 : -65;
+    this.sp  = 15 + Math.random() * 13;
+    this.ln  = 8  + Math.random() * 15;
+    this.a   = 0.18 + Math.random() * 0.30;
+    this.hit = false;
+    this.ry  = PY + 10 + Math.random() * (H - PY - 15) * 0.90;
+  }
+  update() {
+    this.y += this.sp;
+    this.x -= this.sp * LEAN;
+    if (!this.hit && this.y + this.ln >= GY) {
+      this.hit = true;
+      if (Math.random() < 0.26 && ripples.length < 320)
+        ripples.push(new Ripple(this.x, this.ry));
+    }
+    if (this.y > H) this.reset();
+  }
+  draw() {
+    if (this.y >= GY) return;
+    const vis = Math.min(this.ln, GY - this.y);
+    if (vis <= 0) return;
+    ctx.beginPath();
+    ctx.moveTo(this.x, this.y);
+    ctx.lineTo(this.x - vis * LEAN, this.y + vis);
+    ctx.strokeStyle = `rgba(190,218,242,${this.a})`;
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+  }
+}
+
+const ripples = [];
+
+class Ripple {
+  constructor(x, y) {
+    this.x = x; this.y = y;
+    const t = Math.max(0, Math.min(1, (y - PY) / (H - PY)));
+    const s = 0.55 + t * 0.80;
+    this.ps  = 0.13 + t * 0.14;
+    this.age = 0;
+    this.rings = [
+      { r: 1, maxR: (12 + Math.random() * 12) * s, sp: 0.58, start: 0  },
+      { r: 0, maxR: (20 + Math.random() * 18) * s, sp: 0.46, start: 5  },
+      { r: 0, maxR: (28 + Math.random() * 22) * s, sp: 0.38, start: 11 },
+    ];
+  }
+  update() {
+    this.age++;
+    for (const rg of this.rings)
+      if (this.age >= rg.start) rg.r = Math.min(rg.r + rg.sp, rg.maxR);
+    return this.rings[2].r < this.rings[2].maxR;
+  }
+  draw() {
+    if (this.age < 9) {
+      const sa = (1 - this.age / 9) * 0.72;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, 1.8, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(215,235,250,${sa})`;
+      ctx.fill();
+    }
+    for (const rg of this.rings) {
+      if (rg.r <= 0) continue;
+      const a = 0.56 * Math.max(0, 1 - rg.r / rg.maxR);
+      if (a < 0.01) continue;
+      ctx.beginPath();
+      ctx.ellipse(this.x, this.y, rg.r, rg.r * this.ps, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(150,200,230,${a})`;
+      ctx.lineWidth = 0.80;
+      ctx.stroke();
+    }
+  }
+}
+
+const bolts = [];
+let ltTimer = 0, ltNext = 5000 + Math.random() * 5000;
+
+class Bolt {
+  constructor() {
+    const sx = W * 0.10 + Math.random() * W * 0.80;
+    this.segs   = this._gen(sx, H * 0.01, sx + (Math.random() - 0.5) * 260, GY * 0.55);
+    this.branch = Math.random() < 0.50 ? (() => {
+      const mi = Math.floor(this.segs.length * 0.38);
+      const [bx, by] = this.segs[mi];
+      return this._gen(bx, by, bx + (Math.random() - 0.5) * 130, by + GY * 0.25, 3);
+    })() : null;
+    this.a  = 1.0;
+    this.fa = 0.50;
+  }
+  _gen(x1, y1, x2, y2, d = 0) {
+    if (d > 7 || y2 - y1 < 12) return [[x1, y1], [x2, y2]];
+    const mx = (x1 + x2) / 2 + (Math.random() - 0.5) * (y2 - y1) * 1.0;
+    const my = (y1 + y2) / 2;
+    return [...this._gen(x1, y1, mx, my, d + 1),
+            ...this._gen(mx, my, x2, y2, d + 1).slice(1)];
+  }
+  update() { this.a -= 0.037; this.fa -= 0.025; return this.a > 0; }
+  _stroke(segs, a, lw) {
+    ctx.beginPath();
+    ctx.moveTo(segs[0][0], segs[0][1]);
+    for (let i = 1; i < segs.length; i++) ctx.lineTo(segs[i][0], segs[i][1]);
+    ctx.strokeStyle = `rgba(228,244,255,${a})`;
+    ctx.lineWidth = lw;
+    ctx.stroke();
+  }
+  draw() {
+    if (this.fa > 0) {
+      ctx.fillStyle = `rgba(190,215,255,${Math.max(0, this.fa) * 0.36})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+    ctx.save();
+    ctx.shadowBlur  = 40;
+    ctx.shadowColor = `rgba(155,200,255,${this.a * 0.9})`;
+    this._stroke(this.segs, this.a, 2.3);
+    if (this.branch) this._stroke(this.branch, this.a * 0.62, 1.3);
+    ctx.shadowBlur = 0;
+    this._stroke(this.segs, this.a * 0.80, 0.5);
+    ctx.restore();
+  }
+}
+
+function drawSky() {
+  const g = ctx.createLinearGradient(0, 0, 0, GY);
+  g.addColorStop(0,    '#0a0e16');
+  g.addColorStop(0.35, '#101825');
+  g.addColorStop(0.78, '#172334');
+  g.addColorStop(1,    '#1d2e40');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, GY);
+}
+
+function drawClouds() {
+  for (const [cx, cy, rx, ry, a] of [
+    [W * 0.08, H * 0.025, W * 0.36, H * 0.17, 0.92],
+    [W * 0.50, H * 0.010, W * 0.46, H * 0.20, 0.97],
+    [W * 0.91, H * 0.040, W * 0.33, H * 0.16, 0.85],
+    [W * 0.25, H * 0.110, W * 0.30, H * 0.12, 0.68],
+    [W * 0.70, H * 0.095, W * 0.32, H * 0.14, 0.72],
+    [W * 0.50, H * 0.200, W * 0.58, H * 0.13, 0.52],
+  ]) {
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(rx, ry));
+    g.addColorStop(0,    `rgba(6, 10, 18, ${a})`);
+    g.addColorStop(0.55, `rgba(4,  8, 15, ${a * 0.75})`);
+    g.addColorStop(1,    'rgba(2, 5, 10, 0)');
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fillStyle = g;
+    ctx.fill();
+  }
+}
+
+function fillPoly(pts, color) {
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
+function drawHaze(y, a) {
+  const g = ctx.createLinearGradient(0, y - H * 0.07, 0, y + H * 0.05);
+  g.addColorStop(0,   `rgba(25, 44, 68, 0)`);
+  g.addColorStop(0.5, `rgba(25, 44, 68, ${a})`);
+  g.addColorStop(1,   `rgba(25, 44, 68, 0)`);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, y - H * 0.07, W, H * 0.12);
+}
+
+function drawGround() {
+  const g = ctx.createLinearGradient(0, GY, 0, PY);
+  g.addColorStop(0, '#191d11');
+  g.addColorStop(1, '#14180e');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, GY, W, PY - GY);
+}
+
+function drawPuddle() {
+  const g = ctx.createLinearGradient(0, PY, 0, H);
+  g.addColorStop(0,   '#16222f');
+  g.addColorStop(0.3, '#111c29');
+  g.addColorStop(1,   '#080d17');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, PY, W, H - PY);
+  ctx.beginPath();
+  ctx.moveTo(0, PY); ctx.lineTo(W, PY);
+  ctx.strokeStyle = 'rgba(50, 100, 150, 0.20)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+function drawReflection() {
+  ctx.save();
+  ctx.globalAlpha = 0.10;
+  ctx.translate(0, PY * 2);
+  ctx.scale(1, -1);
+  fillPoly(mtnC, '#111b25');
+  ctx.restore();
+  const g = ctx.createLinearGradient(0, PY, 0, PY + H * 0.12);
+  g.addColorStop(0,   'rgba(25, 50, 80, 0.10)');
+  g.addColorStop(1,   'rgba(10, 20, 35, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, PY, W, H * 0.12);
+}
+
+function init() {
+  drops.length = 0;
+  ripples.length = 0;
+  bolts.length = 0;
+  for (let i = 0; i < 330; i++) drops.push(new Drop(true));
+  ltNext = 4500 + Math.random() * 5000;
+}
+
+let prev = 0;
+function frame(ts) {
+  const dt = Math.min(ts - prev, 50); prev = ts;
+  ctx.clearRect(0, 0, W, H);
+
+  drawSky();
+  drawClouds();
+
+  ltTimer += dt;
+  if (ltTimer >= ltNext) {
+    bolts.push(new Bolt());
+    if (Math.random() < 0.38)
+      setTimeout(() => bolts.push(new Bolt()), 110 + Math.random() * 260);
+    ltTimer = 0;
+    ltNext = 3800 + Math.random() * 6500;
+  }
+  for (let i = bolts.length - 1; i >= 0; i--) {
+    bolts[i].draw();
+    if (!bolts[i].update()) bolts.splice(i, 1);
+  }
+
+  fillPoly(mtnA, '#3a4f65');
+  drawHaze(GY * 0.82, 0.15);
+  fillPoly(mtnB, '#1c2d3d');
+  drawHaze(GY * 0.91, 0.12);
+  fillPoly(mtnC, '#101b25');
+
+  for (const t of trees) drawTree(t);
+
+  drawGround();
+  drawPuddle();
+  drawReflection();
+
+  for (const d of drops) { d.update(); d.draw(); }
+
+  for (let i = ripples.length - 1; i >= 0; i--) {
+    ripples[i].draw();
+    if (!ripples[i].update()) ripples.splice(i, 1);
+  }
+
+  requestAnimationFrame(frame);
+}
+
+resize();
+init();
+requestAnimationFrame(frame);
+window.addEventListener('resize', () => { resize(); init(); });
+</script>
+</body>
+</html>
